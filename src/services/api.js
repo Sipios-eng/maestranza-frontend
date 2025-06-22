@@ -7,7 +7,7 @@ import axios from 'axios';
 // Esto hace que 'api-token-auth/' sea accesible directamente desde la raíz
 // y 'api/' sea el prefijo para el resto de tus endpoints DRF.
 const api = axios.create({
-  baseURL: 'https://sipios.pythonanywhere.com/', // La raíz de tu servidor Django
+  baseURL: 'https://Sipios.pythonanywhere.com/', // La raíz de tu servidor Django
 });
 
 // Interceptor para añadir el token de autenticación a cada solicitud
