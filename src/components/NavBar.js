@@ -15,19 +15,24 @@ import {
   ListItemIcon,
   useMediaQuery,
   useTheme,
-  Divider // <--- Added Divider here
+  Divider
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import CategoryIcon from '@mui/icons-material/Category';
-import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import CommuteIcon from '@mui/icons-material/Commute'; // For movements
-import GroupWorkIcon from '@mui/icons-material/GroupWork'; // For kits
-import PersonIcon from '@mui/icons-material/Person'; // For user/profile
+import LocalShippingIcon from '@mui/icons-material/LocalShipping'; // Para Proveedores
+import CommuteIcon from '@mui/icons-material/Commute'; // Para Movimientos
+import GroupWorkIcon from '@mui/icons-material/GroupWork'; // Para Kits
+import PersonIcon from '@mui/icons-material/Person'; // Para usuario/perfil
 import LogoutIcon from '@mui/icons-material/Logout';
+import AssessmentIcon from '@mui/icons-material/Assessment'; // Icono para Informes
+import HistoryIcon from '@mui/icons-material/History'; // <-- NUEVO: Icono para Historial de Precios
+
+// Estas son las únicas importaciones que NavBar.js necesita para su funcionamiento:
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
 
 const NavBar = () => {
   const { logout, username, userRole } = useAuth();
@@ -55,7 +60,8 @@ const NavBar = () => {
     { text: 'Proveedores', icon: <LocalShippingIcon />, path: '/suppliers', roles: ['ADMIN', 'COMPRADOR'] },
     { text: 'Movimientos', icon: <CommuteIcon />, path: '/movements', roles: ['ADMIN', 'GESTOR_INV', 'LOGISTICA'] },
     { text: 'Kits', icon: <GroupWorkIcon />, path: '/kits', roles: ['ADMIN', 'GESTOR_INV'] },
-    // Añadir más rutas según los modelos que tienes
+    { text: 'Informes', icon: <AssessmentIcon />, path: '/reports', roles: ['ADMIN', 'AUDITOR', 'GERENTE_PROY'] },
+    { text: 'Historial Precios', icon: <HistoryIcon />, path: '/purchase-history', roles: ['ADMIN', 'COMPRADOR', 'AUDITOR', 'GERENTE_PROY'] }, // Este es el que queríamos añadir
   ];
 
   const drawer = (

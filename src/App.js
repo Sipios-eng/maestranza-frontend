@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { CssBaseline, Box, CircularProgress } from '@mui/material'; // Importar CircularProgress
+import { CssBaseline, Box, CircularProgress } from '@mui/material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import NavBar from './components/NavBar';
 import LoginPage from './pages/LoginPage';
@@ -13,7 +13,9 @@ import CategoryPage from './pages/CategoryPage';
 import SupplierPage from './pages/SupplierPage';
 import MovementPage from './pages/MovementPage';
 import KitPage from './pages/KitPage';
-import { AuthProvider, useAuth } from './context/AuthContext'; // Importar useAuth
+import ReportsPage from './pages/ReportsPage';
+import PurchaseHistoryPage from './pages/PurchaseHistoryPage'; // <-- NUEVO: Importar la página de Historial de Precios
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 const theme = createTheme({
   palette: {
@@ -65,7 +67,6 @@ const PrivateRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, isAuthLoading, userRole } = useAuth();
 
   if (isAuthLoading) {
-    // Si la autenticación está cargando, muestra un spinner
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
@@ -74,23 +75,20 @@ const PrivateRoute = ({ children, allowedRoles }) => {
   }
 
   if (!isAuthenticated) {
-    // Si no está autenticado, redirige al login
     return <Navigate to="/login" replace />;
   }
 
-  // Si hay roles permitidos y el rol del usuario no está en ellos, redirige al dashboard (o a una página de acceso denegado)
   if (allowedRoles && !allowedRoles.includes(userRole)) {
-    return <Navigate to="/dashboard" replace />; // O a una página de "Acceso Denegado"
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
 };
 
 function AppContent() {
-  const { isAuthenticated, isAuthLoading } = useAuth(); // Obtener isAuthLoading desde el contexto
+  const { isAuthenticated, isAuthLoading } = useAuth();
 
   if (isAuthLoading) {
-    // Mostrar un spinner de carga mientras se verifica la autenticación inicial
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
@@ -101,7 +99,7 @@ function AppContent() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <CssBaseline />
-      {isAuthenticated && <NavBar />} {/* Mostrar NavBar solo si está autenticado */}
+      {isAuthenticated && <NavBar />}
       <Box component="main" sx={{ flexGrow: 1, p: 3, mt: isAuthenticated ? '64px' : 0 }}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -117,33 +115,44 @@ function AppContent() {
             </PrivateRoute>
           }/>
           <Route path="/inventory/new" element={
-            <PrivateRoute allowedRoles={['ADMIN', 'GESTOR_INV']}> {/* Solo ADMIN y GESTOR_INV pueden añadir */}
+            <PrivateRoute allowedRoles={['ADMIN', 'GESTOR_INV']}>
               <ItemForm />
             </PrivateRoute>
           }/>
           <Route path="/inventory/edit/:id" element={
-            <PrivateRoute allowedRoles={['ADMIN', 'GESTOR_INV']}> {/* Solo ADMIN y GESTOR_INV pueden editar */}
+            <PrivateRoute allowedRoles={['ADMIN', 'GESTOR_INV']}>
               <ItemForm />
             </PrivateRoute>
           }/>
           <Route path="/categories" element={
-            <PrivateRoute allowedRoles={['ADMIN', 'GESTOR_INV']}> {/* Solo ADMIN y GESTOR_INV pueden gestionar categorías */}
+            <PrivateRoute allowedRoles={['ADMIN', 'GESTOR_INV']}>
               <CategoryPage />
             </PrivateRoute>
           }/>
           <Route path="/suppliers" element={
-            <PrivateRoute allowedRoles={['ADMIN', 'COMPRADOR']}> {/* Solo ADMIN y COMPRADOR pueden gestionar proveedores */}
+            <PrivateRoute allowedRoles={['ADMIN', 'COMPRADOR']}>
               <SupplierPage />
             </PrivateRoute>
           }/>
           <Route path="/movements" element={
-            <PrivateRoute allowedRoles={['ADMIN', 'GESTOR_INV', 'LOGISTICA']}> {/* Roles para movimientos */}
+            <PrivateRoute allowedRoles={['ADMIN', 'GESTOR_INV', 'LOGISTICA']}>
               <MovementPage />
             </PrivateRoute>
           }/>
           <Route path="/kits" element={
-            <PrivateRoute allowedRoles={['ADMIN', 'GESTOR_INV']}> {/* Roles para kits */}
+            <PrivateRoute allowedRoles={['ADMIN', 'GESTOR_INV']}>
               <KitPage />
+            </PrivateRoute>
+          }/>
+          <Route path="/reports" element={
+            <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR', 'GERENTE_PROY']}>
+              <ReportsPage />
+            </PrivateRoute>
+          }/>
+          {/* NUEVA RUTA para Historial de Precios */}
+          <Route path="/purchase-history" element={
+            <PrivateRoute allowedRoles={['ADMIN', 'COMPRADOR', 'AUDITOR', 'GERENTE_PROY']}> {/* Ajusta los roles según quién puede ver/gestionar */}
+              <PurchaseHistoryPage />
             </PrivateRoute>
           }/>
 
