@@ -3,7 +3,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000/', // ¡Asegúrate de que esta sea la URL base de tu backend!
+  baseURL: 'https://Sipios.pythonanywhere.com/', // ¡Asegúrate de que esta sea la URL base de tu backend!
 });
 
 api.interceptors.request.use(
