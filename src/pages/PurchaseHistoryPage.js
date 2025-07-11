@@ -37,7 +37,7 @@ const PurchaseHistoryPage = () => {
     setError(null);
     try {
       const response = await api.get('api/purchase-records/');
-      setRecords(response.data.results || response.data); // Asume que la respuesta puede ser un objeto con .results o un array directo
+      setRecords(response.data.results || response.data);
     } catch (err) {
       console.error('Error fetching purchase records:', err.response?.data || err.message);
       setError('Error al cargar el historial de precios.');
@@ -49,8 +49,8 @@ const PurchaseHistoryPage = () => {
   const fetchItemsAndSuppliers = useCallback(async () => {
     try {
       const [itemsRes, suppliersRes] = await Promise.all([
-        api.get('api/inventory/'), // Endpoint para ítems
-        api.get('api/suppliers/') // Endpoint para proveedores
+        api.get('api/inventory/'),
+        api.get('api/suppliers/')
       ]);
       setItems(itemsRes.data.results || itemsRes.data);
       setSuppliers(suppliersRes.data.results || suppliersRes.data);
@@ -97,7 +97,16 @@ const PurchaseHistoryPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Manejo especial para inputs numéricos para evitar "01" y permitir decimales
+    if (name === 'unit_price' || name === 'quantity_purchased') {
+      let numValue = value === '' ? '' : parseFloat(value);
+      if (isNaN(numValue) && value !== '') {
+        return;
+      }
+      setFormData((prev) => ({ ...prev, [name]: numValue }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = async () => {
@@ -105,7 +114,7 @@ const PurchaseHistoryPage = () => {
     setError(null);
 
     // Validación básica del formulario
-    if (!formData.item || !formData.supplier || !formData.purchase_date || !formData.unit_price || !formData.quantity_purchased) {
+    if (!formData.item || !formData.supplier || !formData.purchase_date || formData.unit_price === '' || formData.quantity_purchased === '') {
       setError('Por favor, completa todos los campos obligatorios.');
       setLoading(false);
       return;
@@ -113,17 +122,25 @@ const PurchaseHistoryPage = () => {
 
     try {
       if (currentRecord) {
-        // Actualizar registro existente
         await api.put(`api/purchase-records/${currentRecord.id}/`, formData);
       } else {
-        // Crear nuevo registro
         await api.post('api/purchase-records/', formData);
       }
       handleCloseDialog();
       fetchPurchaseRecords(); // Recargar la lista
     } catch (err) {
       console.error('Error submitting purchase record:', err.response?.data || err.message);
-      setError('Error al guardar el registro de compra. ' + (err.response?.data?.detail || err.message));
+      if (err.response && err.response.data) {
+        let errorMessages = '';
+        for (const key in err.response.data) {
+          if (Object.hasOwnProperty.call(err.response.data, key)) {
+            errorMessages += `${key}: ${err.response.data[key].join(', ')}\n`;
+          }
+        }
+        setError('Error al guardar el registro de compra:\n' + errorMessages);
+      } else {
+        setError('Error al guardar el registro de compra. ' + (err.response?.data?.detail || err.message));
+      }
     } finally {
       setLoading(false);
     }
@@ -223,7 +240,7 @@ const PurchaseHistoryPage = () => {
               value={formData.item}
               label="Ítem"
               onChange={handleChange}
-              disabled={!!currentRecord} // No permitir cambiar el ítem si se está editando
+              disabled={!!currentRecord}
             >
               <MenuItem value=""><em>Selecciona un ítem</em></MenuItem>
               {items.map((item) => (
@@ -267,6 +284,7 @@ const PurchaseHistoryPage = () => {
             onChange={handleChange}
             sx={{ mb: 2 }}
             inputProps={{ step: "0.01" }}
+            required
           />
 
           <TextField
@@ -278,6 +296,7 @@ const PurchaseHistoryPage = () => {
             onChange={handleChange}
             sx={{ mb: 2 }}
             inputProps={{ step: "0.01" }}
+            required
           />
 
           <TextField

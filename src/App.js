@@ -8,13 +8,14 @@ import NavBar from './components/NavBar';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import InventoryListPage from './pages/InventoryListPage';
-import ItemForm from './components/ItemForm';
+import ItemForm from './components/ItemForm'; // Assuming ItemForm is still used for new/edit
 import CategoryPage from './pages/CategoryPage';
 import SupplierPage from './pages/SupplierPage';
-import MovementPage from './pages/MovementPage';
+import MovementPage from './pages/MovementPage'; // Renamed from MovementPage2.js in previous context
 import KitPage from './pages/KitPage';
 import ReportsPage from './pages/ReportsPage';
-import PurchaseHistoryPage from './pages/PurchaseHistoryPage'; // <-- NUEVO: Importar la página de Historial de Precios
+import PurchaseHistoryPage from './pages/PurchaseHistoryPage';
+import PurchaseOrderListPage from './pages/PurchaseOrderListPage'; // <-- NUEVO: Importar la página de Órdenes de Compra
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const theme = createTheme({
@@ -149,10 +150,15 @@ function AppContent() {
               <ReportsPage />
             </PrivateRoute>
           }/>
-          {/* NUEVA RUTA para Historial de Precios */}
           <Route path="/purchase-history" element={
-            <PrivateRoute allowedRoles={['ADMIN', 'COMPRADOR', 'AUDITOR', 'GERENTE_PROY']}> {/* Ajusta los roles según quién puede ver/gestionar */}
+            <PrivateRoute allowedRoles={['ADMIN', 'COMPRADOR', 'AUDITOR', 'GERENTE_PROY']}>
               <PurchaseHistoryPage />
+            </PrivateRoute>
+          }/>
+          {/* NUEVA RUTA para Órdenes de Compra */}
+          <Route path="/purchase-orders" element={
+            <PrivateRoute allowedRoles={['ADMIN', 'COMPRADOR', 'GESTOR_INV']}> {/* Roles que pueden ver las órdenes de compra */}
+              <PurchaseOrderListPage />
             </PrivateRoute>
           }/>
 

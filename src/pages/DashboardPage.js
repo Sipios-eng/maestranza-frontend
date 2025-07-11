@@ -1,102 +1,72 @@
 // frontend/src/pages/DashboardPage.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
-import { useLocation } from 'react-router-dom'; // Importar useLocation
 import {
-  Container,
-  Typography,
-  Grid,
-  Card,
-  CardContent,
-  CircularProgress,
-  Alert,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-  Box
+  Container, Typography, Box, Paper, Grid, CircularProgress, Alert, List, ListItem, ListItemText,
+  ListItemIcon, Divider
 } from '@mui/material';
-import InventoryIcon from '@mui/icons-material/Inventory';
 import WarningIcon from '@mui/icons-material/Warning';
-import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
-import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
-import ReplyAllIcon from '@mui/icons-material/ReplyAll';
-import { red, green, blue, orange } from '@mui/material/colors';
-import moment from 'moment'; // Para formatear fechas
+import ErrorIcon from '@mui/icons-material/Error';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import moment from 'moment'; // Asegúrate de tener moment.js instalado (npm install moment)
 
 const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [stats, setStats] = useState({
-    totalItems: 0,
-    lowStockItems: 0,
-    recentMovements: [],
+  const [dashboardData, setDashboardData] = useState({
+    low_stock_items: [],
+    expiring_soon_items: [], // Mantener para HU07
+    expired_items: [],       // Mantener para HU07
+    recent_movements: [],    // Mantener para una visión general
   });
 
-  const location = useLocation(); // Inicializar useLocation
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch ítems con stock bajo (para HU02 / HU12)
+      const lowStockRes = await api.get('api/inventory/low_stock_items/');
+      
+      // Fetch ítems por vencer y vencidos (para HU07, aunque no esté activa aún la HU)
+      const expiringSoonRes = await api.get('api/inventory/expiring_soon_items/');
+      const expiredRes = await api.get('api/inventory/expired_items/');
+
+      // Fetch últimos movimientos (para visión general)
+      const recentMovementsRes = await api.get('api/movements/'); // No hay límite, trae todos y luego se pueden truncar si es necesario
+
+      setDashboardData({
+        low_stock_items: lowStockRes.data || [],
+        expiring_soon_items: expiringSoonRes.data || [],
+        expired_items: expiredRes.data || [],
+        recent_movements: recentMovementsRes.data.results ? recentMovementsRes.data.results.slice(0, 5) : (recentMovementsRes.data || []).slice(0, 5), // Tomar los 5 más recientes
+      });
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err.response?.data || err.message);
+      setError('Error al cargar los datos del dashboard.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const itemsRes = await api.get('api/inventory/');
-        const allItems = itemsRes.data.results || itemsRes.data;
-
-        const totalItems = allItems.length;
-        const lowStockItems = allItems.filter(item => item.quantity <= item.low_stock_threshold).length;
-
-        const movementsRes = await api.get('api/movements/?limit=5');
-        const recentMovements = movementsRes.data.results || movementsRes.data;
-
-        setStats({
-          totalItems,
-          lowStockItems,
-          recentMovements,
-        });
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err);
-        setError('No se pudieron cargar los datos del dashboard.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // CAMBIO CLAVE AQUÍ: Depender de location.state.refresh
     fetchDashboardData();
-  }, [location.state?.refresh]); // Depende del valor de 'refresh' en el estado de la ubicación
-
-  const getMovementIcon = (type) => {
-    switch (type) {
-      case 'ENTRADA':
-        return <TrendingUpIcon sx={{ color: green[500] }} />;
-      case 'SALIDA':
-        return <TrendingDownIcon sx={{ color: red[500] }} />;
-      case 'TRANSFERENCIA':
-        return <SwapHorizIcon sx={{ color: blue[500] }} />;
-      case 'DEVOLUCION':
-        return <ReplyAllIcon sx={{ color: orange[500] }} />;
-      default:
-        return <AssignmentTurnedInIcon />;
-    }
-  };
+    // Opcional: Refrescar datos cada cierto tiempo
+    // const interval = setInterval(fetchDashboardData, 60000); // Cada 1 minuto
+    // return () => clearInterval(interval);
+  }, [fetchDashboardData]);
 
   if (loading) {
     return (
-      <Container sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
         <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Cargando dashboard...</Typography>
-      </Container>
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <Container sx={{ mt: 4 }}>
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
         <Alert severity="error">{error}</Alert>
       </Container>
     );
@@ -108,93 +78,107 @@ const DashboardPage = () => {
         Dashboard del Inventario
       </Typography>
 
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={4}>
-          <Card sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-              <InventoryIcon sx={{ fontSize: 60, color: blue[500], mr: 2 }} />
-              <Box>
-                <Typography variant="h5" component="div">
-                  {stats.totalItems}
-                </Typography>
-                <Typography color="text.secondary">
-                  Ítems Totales
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+      <Grid container spacing={3}>
+        {/* Sección de Alertas de Stock Bajo (HU02) */}
+        <Grid item xs={12} md={6}>
+          <Paper elevation={3} sx={{ p: 3, borderRadius: 2, border: dashboardData.low_stock_items.length > 0 ? '2px solid #ef5350' : 'none' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <ListItemIcon sx={{ minWidth: 40 }}>
+                <WarningIcon color="error" fontSize="large" />
+              </ListItemIcon>
+              <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold', color: '#ef5350' }}>
+                Stock Bajo ({dashboardData.low_stock_items.length})
+              </Typography>
+            </Box>
+            <Divider sx={{ mb: 2 }} />
+            {dashboardData.low_stock_items.length === 0 ? (
+              <Alert severity="success">No hay ítems con stock bajo. ¡Todo en orden!</Alert>
+            ) : (
+              <List dense>
+                {dashboardData.low_stock_items.map((item) => (
+                  <ListItem key={item.id}>
+                    <ListItemText
+                      primary={`${item.name} (Actual: ${item.quantity}, Umbral: ${item.low_stock_threshold})`}
+                      secondary={`Categoría: ${item.category_name || 'N/A'}, Proveedor: ${item.supplier_name || 'N/A'}`}
+                      primaryTypographyProps={{ fontWeight: 'medium' }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Paper>
         </Grid>
-        <Grid item xs={12} md={4}>
-          <Card sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-              <WarningIcon sx={{ fontSize: 60, color: red[500], mr: 2 }} />
-              <Box>
-                <Typography variant="h5" component="div">
-                  {stats.lowStockItems}
-                </Typography>
-                <Typography color="text.secondary">
-                  Ítems con Stock Bajo
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3 }}>
-              <AssignmentTurnedInIcon sx={{ fontSize: 60, color: green[500], mr: 2 }} />
-              <Box>
-                <Typography variant="h5" component="div">
-                  {stats.recentMovements.length}
-                </Typography>
-                <Typography color="text.secondary">
-                  Últimos Movimientos (Top 5)
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
-      <Card sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', p: 3 }}>
-        <Typography variant="h5" component="h2" gutterBottom>
-          Últimos 5 Movimientos de Inventario
-        </Typography>
-        {stats.recentMovements.length === 0 ? (
-          <Alert severity="info">No hay movimientos recientes.</Alert>
-        ) : (
-          <List>
-            {stats.recentMovements.map((movement, index) => (
-              <React.Fragment key={movement.id}>
-                <ListItem>
-                  <ListItemIcon>
-                    {getMovementIcon(movement.movement_type)}
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <>
-                        <Typography component="span" variant="subtitle1" fontWeight="bold">
-                          {movement.movement_type}:
-                        </Typography>
-                        {' '}
-                        {movement.quantity} unidades de "{movement.item_name}"
-                      </>
-                    }
-                    secondary={
-                      <>
-                        Realizado por {movement.moved_by_username} el{' '}
-                        {moment(movement.movement_date).format('DD/MM/YYYY HH:mm')}
-                        {movement.project && ` (Proyecto: ${movement.project})`}
-                      </>
-                    }
-                  />
-                </ListItem>
-                {index < stats.recentMovements.length - 1 && <Divider component="li" />}
-              </React.Fragment>
-            ))}
-          </List>
-        )}
-      </Card>
+        {/* Sección de Alertas de Vencimiento (Para HU07, pero visible ahora) */}
+        <Grid item xs={12} md={6}>
+          <Paper elevation={3} sx={{ p: 3, borderRadius: 2, border: (dashboardData.expiring_soon_items.length > 0 || dashboardData.expired_items.length > 0) ? '2px solid #ff9800' : 'none' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <ListItemIcon sx={{ minWidth: 40 }}>
+                <ErrorIcon color="warning" fontSize="large" />
+              </ListItemIcon>
+              <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold', color: '#ff9800' }}>
+                Alertas de Vencimiento ({dashboardData.expiring_soon_items.length + dashboardData.expired_items.length})
+              </Typography>
+            </Box>
+            <Divider sx={{ mb: 2 }} />
+            {dashboardData.expiring_soon_items.length === 0 && dashboardData.expired_items.length === 0 ? (
+              <Alert severity="success">No hay ítems por vencer o vencidos. ¡Excelente!</Alert>
+            ) : (
+              <List dense>
+                {dashboardData.expiring_soon_items.map((item) => (
+                  <ListItem key={item.id}>
+                    <ListItemText
+                      primary={`${item.name} (Vence: ${moment(item.expiration_date).format('DD/MM/YYYY')})`}
+                      secondary={`Lote: ${item.batch_number || 'N/A'}`}
+                      primaryTypographyProps={{ fontWeight: 'medium', color: '#ff9800' }}
+                    />
+                  </ListItem>
+                ))}
+                {dashboardData.expired_items.map((item) => (
+                  <ListItem key={item.id}>
+                    <ListItemText
+                      primary={`${item.name} (VENCIDO: ${moment(item.expiration_date).format('DD/MM/YYYY')})`}
+                      secondary={`Lote: ${item.batch_number || 'N/A'}`}
+                      primaryTypographyProps={{ fontWeight: 'medium', color: '#d32f2f' }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* Sección de Últimos Movimientos (Para visión general) */}
+        <Grid item xs={12}>
+          <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <ListItemIcon sx={{ minWidth: 40 }}>
+                <CheckCircleIcon color="info" fontSize="large" />
+              </ListItemIcon>
+              <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold', color: '#2196f3' }}>
+                Últimos Movimientos
+              </Typography>
+            </Box>
+            <Divider sx={{ mb: 2 }} />
+            {dashboardData.recent_movements.length === 0 ? (
+              <Alert severity="info">No hay movimientos recientes para mostrar.</Alert>
+            ) : (
+              <List dense>
+                {dashboardData.recent_movements.map((movement) => (
+                  <ListItem key={movement.id}>
+                    <ListItemText
+                      primary={`${movement.movement_type} de ${movement.quantity} de ${movement.item_name}`}
+                      secondary={`Por: ${movement.moved_by_username || 'N/A'} el ${moment(movement.movement_date).format('DD/MM/YYYY HH:mm')}`}
+                      primaryTypographyProps={{ fontWeight: 'medium' }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Paper>
+        </Grid>
+
+      </Grid>
     </Container>
   );
 };

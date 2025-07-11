@@ -27,7 +27,10 @@ import GroupWorkIcon from '@mui/icons-material/GroupWork'; // Para Kits
 import PersonIcon from '@mui/icons-material/Person'; // Para usuario/perfil
 import LogoutIcon from '@mui/icons-material/Logout';
 import AssessmentIcon from '@mui/icons-material/Assessment'; // Icono para Informes
-import HistoryIcon from '@mui/icons-material/History'; // <-- NUEVO: Icono para Historial de Precios
+import HistoryIcon from '@mui/icons-material/History'; // Icono para Historial de Precios
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'; // <-- NUEVO: Icono para Órdenes de Compra
+import PeopleIcon from '@mui/icons-material/People'; // Icono para Usuarios
+import LabelIcon from '@mui/icons-material/Label'; // Icono para Etiquetas
 
 // Estas son las únicas importaciones que NavBar.js necesita para su funcionamiento:
 import { useNavigate, Link } from 'react-router-dom';
@@ -54,14 +57,17 @@ const NavBar = () => {
   };
 
   const navItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['ADMIN', 'GESTOR_INV', 'LOGISTICA', 'JEFE_PROD', 'AUDITOR', 'GERENTE_PROY', 'USUARIO_FINAL'] },
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['ADMIN', 'GESTOR_INV', 'COMPRADOR', 'LOGISTICA', 'JEFE_PROD', 'AUDITOR', 'GERENTE_PROY', 'USUARIO_FINAL'] },
     { text: 'Inventario', icon: <InventoryIcon />, path: '/inventory', roles: ['ADMIN', 'GESTOR_INV', 'LOGISTICA', 'JEFE_PROD', 'AUDITOR', 'GERENTE_PROY', 'USUARIO_FINAL'] },
     { text: 'Categorías', icon: <CategoryIcon />, path: '/categories', roles: ['ADMIN', 'GESTOR_INV'] },
     { text: 'Proveedores', icon: <LocalShippingIcon />, path: '/suppliers', roles: ['ADMIN', 'COMPRADOR'] },
     { text: 'Movimientos', icon: <CommuteIcon />, path: '/movements', roles: ['ADMIN', 'GESTOR_INV', 'LOGISTICA'] },
     { text: 'Kits', icon: <GroupWorkIcon />, path: '/kits', roles: ['ADMIN', 'GESTOR_INV'] },
     { text: 'Informes', icon: <AssessmentIcon />, path: '/reports', roles: ['ADMIN', 'AUDITOR', 'GERENTE_PROY'] },
-    { text: 'Historial Precios', icon: <HistoryIcon />, path: '/purchase-history', roles: ['ADMIN', 'COMPRADOR', 'AUDITOR', 'GERENTE_PROY'] }, // Este es el que queríamos añadir
+    { text: 'Historial Precios', icon: <HistoryIcon />, path: '/purchase-history', roles: ['ADMIN', 'COMPRADOR', 'AUDITOR', 'GERENTE_PROY'] },
+    { text: 'Órdenes de Compra', icon: <ShoppingCartIcon />, path: '/purchase-orders', roles: ['ADMIN', 'COMPRADOR', 'GESTOR_INV'] }, // <-- AÑADIR ESTE ENLACE
+    { text: 'Etiquetas', icon: <LabelIcon />, path: '/tags', roles: ['ADMIN', 'GESTOR_INV'] }, // Asegurarse de que Etiquetas esté en navItems
+    { text: 'Usuarios', icon: <PeopleIcon />, path: '/users', roles: ['ADMIN'] }, // Asegurarse de que Usuarios esté en navItems
   ];
 
   const drawer = (
@@ -110,7 +116,7 @@ const NavBar = () => {
         ) : (
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             {navItems.map((item) => (
-              (item.roles.includes(userRole) || userRole === 'ADMIN') && (
+              (userRole && item.roles.includes(userRole)) && ( // Asegurarse de que userRole exista antes de usar includes
                 <Button key={item.text} color="inherit" component={Link} to={item.path} sx={{ mx: 1 }}>
                   {item.text}
                 </Button>

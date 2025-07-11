@@ -1,362 +1,347 @@
 // frontend/src/components/ItemForm.js
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import {
-  Container,
-  Typography,
-  TextField,
-  Button,
-  Box,
-  CircularProgress,
-  Alert,
-  MenuItem,
-  Grid,
+  Container, Typography, Box, TextField, Button, Paper, CircularProgress, Alert,
+  FormControl, InputLabel, Select, MenuItem, Chip
 } from '@mui/material';
-import SaveIcon from '@mui/icons-material/Save';
-import CancelIcon from '@mui/icons-material/Cancel';
+import { useAuth } from '../context/AuthContext';
 
 const ItemForm = () => {
-  const { id } = useParams(); // Para obtener el ID del ítem si estamos editando
+  const { id } = useParams();
   const navigate = useNavigate();
+  const { userRole } = useAuth();
+  const isEditing = !!id;
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     serial_number: '',
+    batch_number: '',
     location: '',
     quantity: 0,
     low_stock_threshold: 5,
-    purchase_price: 0,
-    expiration_date: '',
-    category: '', // ID de la categoría
-    supplier: '', // ID del proveedor
-    tags: [], // Array de IDs de las etiquetas
+    purchase_price: '',
+    expiration_date: '', // Mantener como cadena vacía inicialmente
+    category: '',
+    supplier: '',
+    tags: [],
   });
-
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
-
-  // Estados para datos de opciones (categorías, proveedores, tags)
   const [categories, setCategories] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
-  const [tags, setTags] = useState([]);
+  const [allTags, setAllTags] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const isEditMode = Boolean(id); // Verdadero si hay un ID en la URL
-
-  // Cargar datos del ítem si estamos en modo edición
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchItemData = useCallback(async () => {
+    if (isEditing) {
       setLoading(true);
-      setError(null);
       try {
-        // Cargar opciones primero
-        const [categoriesRes, suppliersRes, tagsRes] = await Promise.all([
-          api.get('api/categories/'),
-          api.get('api/suppliers/'),
-          api.get('api/tags/'),
-        ]);
-        setCategories(categoriesRes.data.results || categoriesRes.data);
-        setSuppliers(suppliersRes.data.results || suppliersRes.data);
-        setTags(tagsRes.data.results || tagsRes.data);
-
-        if (isEditMode) {
-          const itemRes = await api.get(`api/inventory/${id}/`);
-          const itemData = itemRes.data;
-          setFormData({
-            name: itemData.name || '',
-            description: itemData.description || '',
-            serial_number: itemData.serial_number || '',
-            location: itemData.location || '',
-            quantity: itemData.quantity || 0,
-            low_stock_threshold: itemData.low_stock_threshold || 5,
-            purchase_price: itemData.purchase_price || 0,
-            expiration_date: itemData.expiration_date || '',
-            category: itemData.category || '',
-            supplier: itemData.supplier || '',
-            tags: itemData.tags || [],
-          });
-        }
+        const response = await api.get(`api/inventory/${id}/`);
+        const itemData = response.data;
+        setFormData({
+          name: itemData.name || '',
+          description: itemData.description || '',
+          serial_number: itemData.serial_number || '',
+          batch_number: itemData.batch_number || '',
+          location: itemData.location || '',
+          quantity: itemData.quantity || 0,
+          low_stock_threshold: itemData.low_stock_threshold || 5,
+          purchase_price: itemData.purchase_price || '',
+          expiration_date: itemData.expiration_date || '', // Si es null del backend, se convierte a '' para el input
+          category: itemData.category || '',
+          supplier: itemData.supplier || '',
+          tags: itemData.tags || [],
+        });
       } catch (err) {
-        console.error('Error al cargar datos del formulario:', err);
-        setError('No se pudieron cargar los datos necesarios. Inténtalo de nuevo.');
+        console.error('Error fetching item data:', err);
+        setError('Error al cargar los datos del ítem.');
       } finally {
         setLoading(false);
       }
-    };
+    }
+  }, [id, isEditing]);
 
-    fetchData();
-  }, [id, isEditMode]);
+  const fetchRelatedData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [categoriesRes, suppliersRes, tagsRes] = await Promise.all([
+        api.get('api/categories/'),
+        api.get('api/suppliers/'),
+        api.get('api/tags/'),
+      ]);
+      setCategories(categoriesRes.data.results || categoriesRes.data);
+      setSuppliers(suppliersRes.data.results || suppliersRes.data);
+      setAllTags(tagsRes.data.results || tagsRes.data);
+    } catch (err) {
+      console.error('Error fetching related data:', err);
+      setError('Error al cargar categorías, proveedores o etiquetas.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchItemData();
+    fetchRelatedData();
+  }, [fetchItemData, fetchRelatedData]);
 
   const handleChange = (e) => {
-    // CORRECCIÓN: Eliminado 'checked' de la desestructuración
-    const { name, value, type } = e.target;
-    // Manejo especial para campos numéricos y de selección múltiple (tags)
-    setFormData((prevData) => ({
-      ...prevData,
-      [name]:
-        type === 'number'
-          ? parseFloat(value) || 0 // Convertir a número, manejar NaN
-          : name === 'tags'
-          ? Array.isArray(value) ? value : [] // Asegurarse de que tags sea un array
-          : value,
-    }));
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    setSuccess(null);
-
-    // Formatear la fecha de vencimiento a YYYY-MM-DD si existe, o null
-    const dataToSend = {
-      ...formData,
-      expiration_date: formData.expiration_date || null,
-      purchase_price: formData.purchase_price || null, // Permite que sea null si no se ingresa
-    };
-
-    try {
-      if (isEditMode) {
-        await api.put(`api/inventory/${id}/`, dataToSend);
-        setSuccess('Ítem actualizado exitosamente!');
-      } else {
-        await api.post('api/inventory/', dataToSend);
-        setSuccess('Ítem creado exitosamente!');
-        // Limpiar el formulario después de crear un nuevo ítem
-        setFormData({
-          name: '',
-          description: '',
-          serial_number: '',
-          location: '',
-          quantity: 0,
-          low_stock_threshold: 5,
-          purchase_price: 0,
-          expiration_date: '',
-          category: '',
-          supplier: '',
-          tags: [],
-        });
+    const { name, value } = e.target;
+    
+    if (name === 'quantity' || name === 'low_stock_threshold') {
+      let numValue = value === '' ? '' : parseInt(value, 10);
+      if (isNaN(numValue) && value !== '') {
+        return; 
       }
-      setTimeout(() => navigate('/inventory'), 2000); // Redirigir después de 2 segundos
-    } catch (err) {
-      console.error('Error al guardar el ítem:', err.response?.data || err.message);
-      setError('Error al guardar el ítem. Por favor, verifica los datos e inténtalo de nuevo.');
-    } finally {
-      setSubmitting(false);
+      setFormData((prev) => ({ ...prev, [name]: numValue < 0 ? 0 : numValue }));
+    } else if (name === 'purchase_price') {
+      let numValue = value === '' ? '' : parseFloat(value);
+      if (isNaN(numValue) && value !== '') {
+        return;
+      }
+      setFormData((prev) => ({ ...prev, [name]: numValue < 0 ? 0 : numValue }));
+    } else if (name === 'expiration_date') {
+      // Si el valor es una cadena vacía, guardamos null; de lo contrario, el valor de la fecha
+      setFormData((prev) => ({ ...prev, [name]: value === '' ? null : value }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  if (loading) {
+  const handleTagChange = (e) => {
+    setFormData((prev) => ({ ...prev, tags: e.target.value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    // Crear una copia de formData para enviar, ajustando expiration_date si es null
+    const dataToSend = { ...formData };
+    if (dataToSend.expiration_date === '') {
+      dataToSend.expiration_date = null;
+    }
+
+    try {
+      if (isEditing) {
+        await api.put(`api/inventory/${id}/`, dataToSend);
+      } else {
+        await api.post('api/inventory/', dataToSend);
+      }
+      navigate('/inventory');
+    } catch (err) {
+      console.error('Error submitting item:', err.response?.data || err.message);
+      if (err.response && err.response.data) {
+        let errorMessages = '';
+        for (const key in err.response.data) {
+          if (Object.hasOwnProperty.call(err.response.data, key)) {
+            errorMessages += `${key}: ${err.response.data[key].join(', ')}\n`;
+          }
+        }
+        setError('Error al guardar el ítem:\n' + errorMessages);
+      } else {
+        setError('Error al guardar el ítem. Por favor, inténtalo de nuevo.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const canEditOrCreate = userRole === 'ADMIN' || userRole === 'GESTOR_INV';
+
+  if (!canEditOrCreate) {
     return (
-      <Container sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-        <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Cargando formulario...</Typography>
+      <Container maxWidth="md" sx={{ mt: 4 }}>
+        <Alert severity="warning">No tienes permisos para acceder a esta página.</Alert>
       </Container>
     );
   }
 
+  if (loading && !formData.name) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4, p: 3, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', backgroundColor: '#fff' }}>
-      <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 3 }}>
-        {isEditMode ? 'Editar Ítem de Inventario' : 'Añadir Nuevo Ítem de Inventario'}
+    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 4 }}>
+        {isEditing ? 'Editar Ítem de Inventario' : 'Añadir Nuevo Ítem de Inventario'}
       </Typography>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+      <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+        <form onSubmit={handleSubmit}>
+          <TextField
+            label="Nombre del Ítem"
+            name="name"
+            fullWidth
+            margin="normal"
+            value={formData.name}
+            onChange={handleChange}
+            required
+          />
+          <TextField
+            label="Descripción"
+            name="description"
+            fullWidth
+            multiline
+            rows={3}
+            margin="normal"
+            value={formData.description}
+            onChange={handleChange}
+          />
+          <TextField
+            label="Número de Serie"
+            name="serial_number"
+            fullWidth
+            margin="normal"
+            value={formData.serial_number}
+            onChange={handleChange}
+          />
+          <TextField
+            label="Número de Lote"
+            name="batch_number"
+            fullWidth
+            margin="normal"
+            value={formData.batch_number}
+            onChange={handleChange}
+          />
+          <TextField
+            label="Ubicación en Almacén"
+            name="location"
+            fullWidth
+            margin="normal"
+            value={formData.location}
+            onChange={handleChange}
+          />
+          <TextField
+            label="Cantidad Actual"
+            name="quantity"
+            type="number"
+            fullWidth
+            margin="normal"
+            value={formData.quantity}
+            onChange={handleChange}
+            required
+            inputProps={{ min: "0" }}
+          />
+          <TextField
+            label="Umbral de Stock Bajo"
+            name="low_stock_threshold"
+            type="number"
+            fullWidth
+            margin="normal"
+            value={formData.low_stock_threshold}
+            onChange={handleChange}
+            required
+            inputProps={{ min: "0" }}
+          />
+          <TextField
+            label="Precio de Compra"
+            name="purchase_price"
+            type="number"
+            fullWidth
+            margin="normal"
+            value={formData.purchase_price}
+            onChange={handleChange}
+            inputProps={{ step: "0.01", min: "0" }}
+          />
+          <TextField
+            label="Fecha de Vencimiento"
+            name="expiration_date"
+            type="date"
+            fullWidth
+            margin="normal"
+            value={formData.expiration_date || ''} // Asegurarse de que el valor sea '' si es null para el input
+            onChange={handleChange}
+            InputLabelProps={{ shrink: true }}
+          />
 
-      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Nombre del Ítem"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              variant="outlined"
-              size="small"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Número de Serie"
-              name="serial_number"
-              value={formData.serial_number}
-              onChange={handleChange}
-              variant="outlined"
-              size="small"
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
-              label="Descripción"
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              multiline
-              rows={3}
-              variant="outlined"
-              size="small"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Ubicación en Almacén"
-              name="location"
-              value={formData.location}
-              onChange={handleChange}
-              variant="outlined"
-              size="small"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Cantidad Actual"
-              name="quantity"
-              type="number"
-              value={formData.quantity}
-              onChange={handleChange}
-              required
-              variant="outlined"
-              size="small"
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Umbral de Stock Bajo"
-              name="low_stock_threshold"
-              type="number"
-              value={formData.low_stock_threshold}
-              onChange={handleChange}
-              required
-              variant="outlined"
-              size="small"
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Precio de Compra"
-              name="purchase_price"
-              type="number"
-              value={formData.purchase_price}
-              onChange={handleChange}
-              variant="outlined"
-              size="small"
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Fecha de Vencimiento"
-              name="expiration_date"
-              type="date"
-              value={formData.expiration_date}
-              onChange={handleChange}
-              InputLabelProps={{ shrink: true }}
-              variant="outlined"
-              size="small"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              select
-              label="Categoría"
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Categoría</InputLabel>
+            <Select
               name="category"
               value={formData.category}
               onChange={handleChange}
-              variant="outlined"
-              size="small"
-              helperText="Selecciona una categoría"
+              label="Categoría"
             >
               <MenuItem value=""><em>Ninguna</em></MenuItem>
               {categories.map((cat) => (
-                <MenuItem key={cat.id} value={cat.id}>
-                  {cat.name}
-                </MenuItem>
+                <MenuItem key={cat.id} value={cat.id}>{cat.name}</MenuItem>
               ))}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              select
-              label="Proveedor"
+            </Select>
+          </FormControl>
+
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Proveedor</InputLabel>
+            <Select
               name="supplier"
               value={formData.supplier}
               onChange={handleChange}
-              variant="outlined"
-              size="small"
-              helperText="Selecciona un proveedor"
+              label="Proveedor"
             >
               <MenuItem value=""><em>Ninguno</em></MenuItem>
               {suppliers.map((sup) => (
-                <MenuItem key={sup.id} value={sup.id}>
-                  {sup.name}
-                </MenuItem>
+                <MenuItem key={sup.id} value={sup.id}>{sup.name}</MenuItem>
               ))}
-            </TextField>
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
-              select
-              label="Etiquetas"
+            </Select>
+          </FormControl>
+
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="tags-label">Etiquetas</InputLabel>
+            <Select
+              labelId="tags-label"
+              multiple
               name="tags"
               value={formData.tags}
-              onChange={handleChange}
-              variant="outlined"
-              size="small"
-              SelectProps={{
-                multiple: true,
-              }}
-              helperText="Selecciona una o más etiquetas"
+              onChange={handleTagChange}
+              renderValue={(selected) => (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {selected.map((tagId) => {
+                    const tag = allTags.find(t => t.id === tagId);
+                    return tag ? <Chip key={tagId} label={tag.name} /> : null;
+                  })}
+                </Box>
+              )}
+              label="Etiquetas"
             >
-              {tags.map((tag) => (
+              {allTags.map((tag) => (
                 <MenuItem key={tag.id} value={tag.id}>
                   {tag.name}
                 </MenuItem>
               ))}
-            </TextField>
-          </Grid>
-        </Grid>
+            </Select>
+          </FormControl>
 
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3, gap: 2 }}>
-          <Button
-            variant="outlined"
-            color="secondary"
-            startIcon={<CancelIcon />}
-            onClick={() => navigate('/inventory')}
-            sx={{ borderRadius: 2 }}
-          >
-            Cancelar
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-            disabled={submitting}
-            sx={{ borderRadius: 2 }}
-          >
-            {isEditMode ? 'Actualizar Ítem' : 'Crear Ítem'}
-          </Button>
-        </Box>
-      </Box>
+          {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+
+          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={() => navigate('/inventory')}
+              sx={{ borderRadius: 2 }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              disabled={loading}
+              sx={{ borderRadius: 2 }}
+            >
+              {loading ? <CircularProgress size={24} /> : (isEditing ? 'Guardar Cambios' : 'Añadir Ítem')}
+            </Button>
+          </Box>
+        </form>
+      </Paper>
     </Container>
   );
 };
